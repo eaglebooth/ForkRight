@@ -4,6 +4,8 @@ ForkRight is a GenLayer continuity covenant for open-source projects. A maintain
 
 **Studio Next deployment:** [`0x091586bff987a691d4DD91d6A1A7F1C49A399202`](https://explorer-studio-dev.genlayer.com/address/0x091586bff987a691d4DD91d6A1A7F1C49A399202)
 
+**Live verification:** [Studio Next happy-path and failure-path transaction ledger](docs/LIVE_E2E_EVIDENCE.md)
+
 ## Why GenLayer
 
 Commit timestamps alone cannot distinguish a quiet but maintained library from an abandoned one. ForkRight evaluates the meaning of releases, maintainer responses and unresolved security notices while binding every decision to pinned, content-addressed GitHub evidence.
