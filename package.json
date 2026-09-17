@@ -12,6 +12,7 @@
     "verify:deployment": "node scripts/verify-deployment.mjs",
     "test:live": "node scripts/live-e2e.mjs",
     "test:restoration": "node scripts/live-restoration.mjs"
+    ,"test:adversarial": "node scripts/live-adversarial.mjs"
   },
   "dependencies": {
     "@genlayer/transaction-kit": "0.1.0-rc.2",
@@ -30,5 +31,8 @@
     "eslint": "^9",
     "eslint-config-next": "^16.3.2",
     "typescript": "^5"
+  },
+  "overrides": {
+    "ws": "8.21.3"
   }
 }
