@@ -15,7 +15,7 @@ export default function Home() {
   const [wallet, setWallet] = useState("");
   const [menu, setMenu] = useState(false);
   const [mode, setMode] = useState<FormMode>("register");
-  const [notice, setNotice] = useState<Notice>({ kind: "idle", text: configured() ? "Ready on Studio Next." : "Preview mode — deploy the contract to enable writes." });
+  const [notice, setNotice] = useState<Notice>({ kind: "idle", text: configured() ? "Verify the configured contract is V2 before writing. V1 writes are blocked." : "V2 is not deployed yet — deploy the contract to enable writes." });
   const [lookupId, setLookupId] = useState("oss-kernel-001");
   const [readback, setReadback] = useState<Record<string, unknown> | null>(null);
 
@@ -30,7 +30,7 @@ export default function Home() {
     let method = ""; let args: unknown[] = [];
     if (mode === "register") {
       method = "register_covenant";
-      args = [field(data, "covenant_id"), field(data, "repository"), field(data, "steward"), field(data, "standard"), BigInt(field(data, "inactivity_days")), BigInt(field(data, "response_days")), BigInt(field(data, "challenge_seconds"))];
+      args = [field(data, "covenant_id"), field(data, "repository"), field(data, "steward"), field(data, "standard"), BigInt(field(data, "inactivity_days")), BigInt(field(data, "response_days")), BigInt(field(data, "challenge_seconds")), field(data, "manifest_url"), field(data, "manifest_sha256")];
     } else if (mode === "claim") {
       method = "open_claim";
       args = [field(data, "claim_id"), field(data, "covenant_id"), field(data, "activity_url"), field(data, "activity_sha256"), field(data, "security_url"), field(data, "security_sha256"), field(data, "response_url"), field(data, "response_sha256"), field(data, "statement")];
@@ -38,7 +38,7 @@ export default function Home() {
       method = "assess_claim"; args = [field(data, "claim_id")];
     } else {
       method = field(data, "resolution"); args = [field(data, "claim_id")];
-      if (method === "restore_continuity") args.push(field(data, "restoration_note"));
+      if (method === "restore_continuity") args.push(field(data, "restoration_url"), field(data, "restoration_sha256"));
     }
     setNotice({ kind: "working", text: "Awaiting wallet and validator finality…" });
     const result = await writeContract(method, args);
@@ -105,15 +105,15 @@ export default function Home() {
         <div className="operator">
           <div className="tabs">{(["register","claim","assess","resolve"] as FormMode[]).map((item,i)=><button key={item} className={mode===item?"selected":""} onClick={()=>setMode(item)}><span>0{i+1}</span>{item}</button>)}</div>
           <form onSubmit={submit}>
-            {mode === "register" && <><div className="form-grid"><label>Covenant ID<input name="covenant_id" defaultValue="oss-kernel-001" required/></label><label>Repository<input name="repository" defaultValue="openmesh/relay-core" required/></label><label>Community steward<input name="steward" placeholder="0x… distinct address" required/></label><label>Inactivity days<input name="inactivity_days" type="number" defaultValue="120" min="30" required/></label><label>Response days<input name="response_days" type="number" defaultValue="30" min="7" required/></label><label>Challenge seconds<input name="challenge_seconds" type="number" defaultValue="604800" min="60" required/></label></div><label>Maintenance standard<textarea name="standard" defaultValue="Abandoned only when no meaningful release or security remediation exists for 120 days, a material unresolved security notice remains, and no substantive maintainer response exists within 30 days." required/></label></>}
+            {mode === "register" && <><div className="form-grid"><label>Covenant ID<input name="covenant_id" defaultValue="oss-kernel-001" required/></label><label>Repository<input name="repository" defaultValue="openmesh/relay-core" required/></label><label>Community steward<input name="steward" placeholder="0x… distinct address" required/></label><label>Inactivity days<input name="inactivity_days" type="number" defaultValue="120" min="30" required/></label><label>Response days<input name="response_days" type="number" defaultValue="30" min="7" required/></label><label>Challenge seconds<input name="challenge_seconds" type="number" defaultValue="604800" min="60" required/></label></div><label>Maintenance standard<textarea name="standard" defaultValue="Abandoned only when no meaningful release or security remediation exists for 120 days, a material unresolved security notice remains, and no substantive maintainer response exists within 30 days." required/></label><div className="evidence-row"><label>Repository manifest URL<input name="manifest_url" placeholder="https://raw.githubusercontent.com/org/repo/<40-char-commit>/.github/forkright/manifest.json" required/></label><label>Manifest SHA-256<input name="manifest_sha256" placeholder="64 lowercase hex characters" required/></label></div></>}
             {mode === "claim" && <><div className="form-grid"><label>Claim ID<input name="claim_id" defaultValue="claim-oss-001" required/></label><label>Covenant ID<input name="covenant_id" defaultValue="oss-kernel-001" required/></label></div>{["activity","security","response"].map(kind=><div className="evidence-row" key={kind}><label>{kind} URL<input name={`${kind}_url`} placeholder="https://raw.githubusercontent.com/org/repo/<40-char-commit>/evidence.json" required/></label><label>SHA-256<input name={`${kind}_sha256`} placeholder="64 lowercase hex characters" required/></label></div>)}<label>Reporter statement<textarea name="statement" placeholder="Explain which covenant conditions the pinned evidence demonstrates." required/></label></>}
             {mode === "assess" && <div className="single-action"><ShieldCheck/><div><h3>Invoke decentralized judgment</h3><p>Validators refetch all three pinned documents. Missing or contradictory evidence fails closed.</p></div><label>Claim ID<input name="claim_id" defaultValue="claim-oss-001" required/></label></div>}
-            {mode === "resolve" && <><div className="form-grid"><label>Claim ID<input name="claim_id" defaultValue="claim-oss-001" required/></label><label>Resolution<select name="resolution"><option value="restore_continuity">Maintainer restores continuity</option><option value="finalize_succession">Steward finalizes succession</option></select></label></div><label>Restoration note<textarea name="restoration_note" placeholder="Required only for restoration; describe the substantive response."/></label></>}
+            {mode === "resolve" && <><div className="form-grid"><label>Claim ID<input name="claim_id" defaultValue="claim-oss-001" required/></label><label>Resolution<select name="resolution"><option value="restore_continuity">Maintainer restores continuity</option><option value="finalize_succession">Steward finalizes succession</option><option value="expire_claim">Expire an unassessed claim after 7 days</option></select></label></div><div className="evidence-row"><label>Restoration URL<input name="restoration_url" placeholder="Required only for restoration"/></label><label>Restoration SHA-256<input name="restoration_sha256" placeholder="Required only for restoration"/></label></div></>}
             <button className="submit" disabled={notice.kind==="working"}>{notice.kind==="working"?"Awaiting finality…":`${mode} on Studio Next`}<ArrowRight size={17}/></button>
           </form>
         </div>
         <aside className="readback">
-          <div className="read-head"><span>AUTHORITATIVE READBACK</span><span className={configured()?"online":"offline"}>{configured()?"CONNECTED":"NOT DEPLOYED"}</span></div>
+          <div className="read-head"><span>ON-CHAIN READBACK</span><span className={configured()?"online":"offline"}>{configured()?"ADDRESS SET · VERIFY V2":"V2 NOT DEPLOYED"}</span></div>
           <label>Lookup covenant or claim ID<input value={lookupId} onChange={e=>setLookupId(e.target.value)}/></label><button onClick={inspect} disabled={!configured()}>Synchronize state</button>
           <div className={`notice ${notice.kind}`}><span/>{notice.text}{notice.hash&&<a href={explorerTx(notice.hash)} target="_blank" rel="noreferrer">Transaction <ExternalLink size={13}/></a>}</div>
           <div className="json">{readback ? Object.entries(readback).map(([key,value])=><div key={key}><span>{key.replaceAll("_"," ")}</span><strong>{String(value)}</strong></div>) : <div className="empty"><GitBranch/><p>No synchronized record yet.</p></div>}</div>

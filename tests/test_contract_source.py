@@ -9,7 +9,7 @@ def test_studio_next_runner_is_pinned():
 
 
 def test_contract_exposes_complete_lifecycle():
-    for method in ("register_covenant", "open_claim", "assess_claim", "restore_continuity", "finalize_succession"):
+    for method in ("register_covenant", "open_claim", "assess_claim", "expire_claim", "restore_continuity", "finalize_succession"):
         assert f"def {method}(" in SOURCE
 
 
@@ -22,7 +22,7 @@ def test_evidence_is_commit_pinned_and_digest_bound():
 def test_bounded_model_verdicts():
     for verdict in ("ACTIVE", "TEMPORARILY_INACTIVE", "ABANDONED", "UNCERTAIN"):
         assert verdict in SOURCE
-    assert 'set(item.keys()) != {"verdict", "reason"}' in SOURCE
+    assert 'set(item.keys()) != {"verdict"}' in SOURCE
 
 
 def test_validators_refetch_same_sources():
@@ -46,3 +46,30 @@ def test_maintainer_challenge_rotates_revision():
     restoration = SOURCE[SOURCE.index("def restore_continuity"):SOURCE.index("def finalize_succession")]
     assert "MAINTAINER_ONLY" in restoration
     assert "covenant.revision += u256(1)" in restoration
+    assert "gl.vm.run_nondet(evaluate_restoration, validate_restoration)" in restoration
+    assert "_pinned_github_url(restoration_url, str(covenant.repository)" in restoration
+
+
+def test_v2_repository_manifest_and_evidence_binding():
+    register = SOURCE[SOURCE.index("def register_covenant"):SOURCE.index("def open_claim")]
+    claim = SOURCE[SOURCE.index("def open_claim"):SOURCE.index("def assess_claim")]
+    assert "validate_manifest" in register
+    assert "manifest_result != {\"digest\": manifest_hash}" in register
+    assert '"maintainer": self._sender()' in register
+    assert "_pinned_github_url(url, str(covenant.repository)" in claim
+
+
+def test_source_failure_has_bounded_retries():
+    assessment = SOURCE[SOURCE.index("def assess_claim"):SOURCE.index("def restore_continuity")]
+    assert "claim.assessment_attempts += u256(1)" in assessment
+    assert "int(claim.assessment_attempts) >= 3" in assessment
+    assert "EVIDENCE_SCOPE_MISMATCH" in assessment
+    assert "CLAIM_TTL_SECONDS" in assessment
+    expiration = SOURCE[SOURCE.index("def expire_claim"):SOURCE.index("def restore_continuity")]
+    assert 'claim.status = "EXPIRED"' in expiration
+
+
+def test_v2_version_and_reason_consensus():
+    assert '"version": 2' in SOURCE
+    assert 'left == right and proposed.get("evidence_digest")' in SOURCE
+    assert 'claim.reason = "Consensus verdict: " + normalized["verdict"]' in SOURCE

@@ -48,6 +48,13 @@ export async function writeContract(method: string, args: unknown[]): Promise<Ch
   if (!configured()) return { success: false, error: "Deploy ForkRight and configure its address first." };
   if (!window.ethereum) return { success: false, error: "Connect a wallet first." };
   try {
+    const version = await readContract("get_contract_version");
+    let metadata = version.data;
+    for (let i = 0; i < 2 && typeof metadata === "string"; i++) metadata = JSON.parse(metadata);
+    if (metadata && typeof metadata === "object" && "result" in metadata) metadata = (metadata as { result: unknown }).result;
+    if (!version.success || !metadata || typeof metadata !== "object" || Number((metadata as { version?: unknown }).version) !== 2) {
+      return { success: false, error: "This console requires ForkRight V2. Configure the newly deployed V2 contract address; V1 writes are blocked." };
+    }
     await ensureNetwork(window.ethereum);
     const account = ((await window.ethereum.request({ method: "eth_requestAccounts" })) as string[])[0] as `0x${string}`;
     const kit = createTransactionKit({ chain: GENLAYER_CHAIN, provider: window.ethereum, account });
