@@ -1,0 +1,7 @@
+{
+  "repository": "eaglebooth/ForkRight",
+  "observed_at": "2026-09-17T10:00:00Z",
+  "latest_meaningful_release": "2026-09-10T09:00:00Z",
+  "release": "v1.0.1",
+  "summary": "Release v1.0.1 changes contract validation and fixes the reported lifecycle defect. The release is within the covenant inactivity window."
+}

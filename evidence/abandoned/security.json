@@ -1,0 +1,9 @@
+{
+  "repository": "eaglebooth/ForkRight",
+  "observed_at": "2026-09-17T10:00:00Z",
+  "notice": "FRSA-2026-001",
+  "severity": "critical",
+  "opened_at": "2026-07-20T08:00:00Z",
+  "resolved": false,
+  "summary": "A material critical security notice remains unresolved and no corrective release or mitigation is linked."
+}
