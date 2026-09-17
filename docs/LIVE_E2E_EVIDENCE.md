@@ -41,7 +41,7 @@ The finalization was submitted near the boundary and executed after the 60-secon
 | Reject succession before deadline | [`0xbed4…ef6f`](https://explorer-studio-dev.genlayer.com/tx/0xbed40e668d2259c728f686d30e356712a2d89a54cbe78caabca9f9d5d409ef6f) | Rollback `SUCCESSION_NOT_READY` |
 | Maintainer restores continuity | [`0xdb44…cc83`](https://explorer-studio-dev.genlayer.com/tx/0xdb44b8f4cc3d695d1768dd37af4a27b73b2390384349d2c09f1067adcb88cc83) | Claim `RESTORED`; covenant revision incremented |
 
-## Final readback
+## Core-flow checkpoint
 
 ```json
 {
@@ -52,3 +52,30 @@ The finalization was submitted near the boundary and executed after the 60-secon
 ```
 
 The restored claim retains its original semantic verdict `ABANDONED` as history while its deterministic lifecycle status becomes `RESTORED`. Its evidence digest is `78982a05b6c7169c08c7889aea58152b3b55829231c46dd51ff02aaf87b139be`.
+
+## Adversarial and conflict paths
+
+| Scenario | Transaction | Result |
+| --- | --- | --- |
+| Missing claim | [`0x0799…9d4e`](https://explorer-studio-dev.genlayer.com/tx/0x0799e71534efb02b275b27c54e35534fcaa01a84b6d4286f1fd11a0f1e0a9d4e) | Rollback `CLAIM_NOT_FOUND` |
+| Missing covenant | [`0x2896…6c85`](https://explorer-studio-dev.genlayer.com/tx/0x2896144b2e021102c70bdf16f8c18da780ad5281b4d401d2c61cc10d87046c85) | Rollback `COVENANT_NOT_FOUND` |
+| Non-GitHub evidence URL | [`0x6e04…64f0`](https://explorer-studio-dev.genlayer.com/tx/0x6e04634594378f7166d9ae2a7fbe8882dfca7e981760c9c8ed243cc8d0c164f0) | Rollback `INVALID_EVIDENCE_BUNDLE` |
+| Tampered SHA assessment | [`0x31b4…89b7`](https://explorer-studio-dev.genlayer.com/tx/0x31b4a3999d8dae1ea2502d3e742afa134fb766085dfd62d4dbeb86c2920689b7) | `UNCERTAIN`, `EVIDENCE_FAILURE` |
+| Reassess finalized claim | [`0x9338…ef7b`](https://explorer-studio-dev.genlayer.com/tx/0x93383840b28170485243b7d3e16fbcc3812bc232604c33c057a7ed1f9bffef7b) | Rollback `CLAIM_NOT_ASSESSABLE` |
+| Duplicate claim | [`0x270f…78f5`](https://explorer-studio-dev.genlayer.com/tx/0x270fb466867e6e691f0f7c329fd372ac3902be67d09d6aa572d347ae7f0578f5) | Rollback `INVALID_OR_DUPLICATE_CLAIM` |
+| Conflicting evidence assessment | [`0x064a…3b2e`](https://explorer-studio-dev.genlayer.com/tx/0x064ad451a202995a4cd4a062cdfae37e80cdc6523b034744a96ca066b8823b2e) | `UNCERTAIN`; no challenge |
+| Prompt-injection evidence assessment | [`0x9728…c51d`](https://explorer-studio-dev.genlayer.com/tx/0x9728da790923c68cd8e05dcb611aa8e5027d27600751eb2c3925e6e6a332c51d) | Tested fixture finalized `ACTIVE/DISMISSED`; no succession opened |
+| Maintainer attempts finalization | [`0xc882…ee57`](https://explorer-studio-dev.genlayer.com/tx/0xc8828a79398a858ea2fcb1997218344aab7bd8829bbca344ed3096169db8ee57) | Rollback `STEWARD_ONLY` |
+| Steward finalizes early | [`0xaa3f…8851`](https://explorer-studio-dev.genlayer.com/tx/0xaa3fe85883ecedf67042cb6b043bf11f85e0ac6d1529840bccbb396759778851) | Rollback `SUCCESSION_NOT_READY` |
+
+## Edge-state paths
+
+The `TEMPORARILY_INACTIVE` probe finalized at [`0xc9c1…958c`](https://explorer-studio-dev.genlayer.com/tx/0xc9c10919fd956e279ac97c251557dd7e1e27cac119210c4362085bea21a3958c), but validators returned `ACTIVE/DISMISSED`. This is recorded as audit finding A-05 rather than relabeled as a pass.
+
+| Scenario | Transaction | Result |
+| --- | --- | --- |
+| Register unavailable-source covenant | [`0x05b8…0b7f`](https://explorer-studio-dev.genlayer.com/tx/0x05b84aa19d6bafeca23e6bb36cd1bdb6874b07e4411753be8136d7d9ab450b7f) | Finalized |
+| Open claim with commit-pinned missing path | [`0xa427…13fe`](https://explorer-studio-dev.genlayer.com/tx/0xa427d269b095f03f3b59d581cbd480b6157f5a1f003803eead278f309ef313fe) | Finalized |
+| Assess HTTP 404 source | [`0x1825…6861`](https://explorer-studio-dev.genlayer.com/tx/0x18251f7be16047ed8d063790eac9b7159c6f25e4d54a644635173680e2c66861) | `UNCERTAIN`, `EVIDENCE_FAILURE` |
+
+Final readback after all live probes: `10 covenants`, `9 claims`, `1 succession`.

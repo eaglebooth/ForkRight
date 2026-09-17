@@ -6,6 +6,8 @@ ForkRight is a GenLayer continuity covenant for open-source projects. A maintain
 
 **Live verification:** [Studio Next happy-path and failure-path transaction ledger](docs/LIVE_E2E_EVIDENCE.md)
 
+**Security status:** V1 is an experimental prototype. Read the [adversarial audit and required V2 controls](docs/ADVERSARIAL_AUDIT.md) before relying on it for real repository governance.
+
 ## Why GenLayer
 
 Commit timestamps alone cannot distinguish a quiet but maintained library from an abandoned one. ForkRight evaluates the meaning of releases, maintainer responses and unresolved security notices while binding every decision to pinned, content-addressed GitHub evidence.
@@ -17,7 +19,7 @@ Commit timestamps alone cannot distinguish a quiet but maintained library from a
 3. A reporter opens a claim with three pinned raw-GitHub evidence documents.
 4. Validators independently refetch the evidence and return a bounded verdict.
 5. `ACTIVE` dismisses the claim; `UNCERTAIN` fails closed; `ABANDONED` opens a challenge window.
-6. The maintainer can restore continuity with fresh pinned evidence.
+6. In V1, the maintainer can mark continuity restored during the challenge window using a free-text note. This is not independently verified; see the security audit.
 7. After the challenge window, the nominated steward finalizes succession.
 
 No GitHub account, package namespace or private key is transferred. V1 records a canonical on-chain successor and a bounded community mandate only.
