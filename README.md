@@ -6,6 +6,8 @@ ForkRight is a GenLayer continuity covenant for open-source projects. A maintain
 
 **Live verification:** [Studio Next happy-path and failure-path transaction ledger](docs/LIVE_E2E_EVIDENCE.md)
 
+**V2 live verification:** [Studio Next V2 E2E ledger](docs/LIVE_V2_E2E_EVIDENCE.md)
+
 **V2 Studio Next deployment:** [`0x0991554D61416bD89C848aB6478baA611e6CcED6`](https://explorer-studio-dev.genlayer.com/address/0x0991554D61416bD89C848aB6478baA611e6CcED6). RPC readback confirms `version: 2` and `schema: continuity-covenant-v2`; live workflow tests are still pending. The linked transaction ledger proves V1 only. Read the [V1 adversarial audit](docs/ADVERSARIAL_AUDIT.md) and [V2 migration notes](docs/V2_MIGRATION.md) before relying on the protocol.
 
 ## Why GenLayer
