@@ -6,6 +6,7 @@ import { studioNext } from "./network.mjs";
 
 const contract = "0x0991554D61416bD89C848aB6478baA611e6CcED6";
 const commit = process.env.FORKRIGHT_EVIDENCE_COMMIT;
+const phase = process.env.FORKRIGHT_PHASE || "full";
 if (!/^[0-9a-f]{40}$/.test(commit || "")) throw new Error("Set FORKRIGHT_EVIDENCE_COMMIT to the pushed 40-character fixture commit SHA.");
 const root = `https://raw.githubusercontent.com/eaglebooth/ForkRight/${commit}/.github/forkright`;
 const sha = value => createHash("sha256").update(value).digest("hex");
@@ -55,7 +56,7 @@ const read = async (method, args = []) => normalize(await reader.readContract({ 
 const version = await read("get_contract_version");
 if (Number(version?.version) !== 2) throw new Error("Target is not ForkRight V2. No writes submitted.");
 const initial = await read("get_stats");
-if (Number(initial.covenants) !== 0) throw new Error("V2 test expects a fresh contract with zero covenants. No writes submitted.");
+if (phase === "full" && Number(initial.covenants) !== 0) throw new Error("Full V2 test expects a fresh contract with zero covenants. No writes submitted.");
 const file = async path => readFile(new URL(`../.github/forkright/${path}`, import.meta.url));
 const manifest = { url: `${root}/manifest.json`, digest: sha(await file("manifest.json")) };
 const evidence = {};
@@ -72,8 +73,9 @@ for (const state of ["promise", "verified"]) {
   restoration[state] = { url: `${root}/${path}`, digest: sha(await file(path)) };
 }
 const standard = "Abandoned only when no meaningful release or security remediation exists for 120 days, a material unresolved security notice remains, and no substantive maintainer response exists within 30 days.";
-const covenantId = "v2-e2e-001";
-const covenantArgs = (id = covenantId, stewardAddress = accounts[1].address) => [id, "eaglebooth/ForkRight", stewardAddress, standard, 120n, 30n, 60n, manifest.url, manifest.digest];
+const covenantId = phase === "resume" ? "v2-e2e-002" : "v2-e2e-001";
+const challengeSeconds = phase === "resume" ? 600n : 60n;
+const covenantArgs = (id = covenantId, stewardAddress = accounts[1].address) => [id, "eaglebooth/ForkRight", stewardAddress, standard, 120n, 30n, challengeSeconds, manifest.url, manifest.digest];
 const claimArgs = (id, state) => [id, covenantId,
   evidence[state].activity.url, evidence[state].activity.digest,
   evidence[state].security.url, evidence[state].security.digest,
@@ -116,6 +118,7 @@ async function claim(label, id, state, expectedStatus, expectedVerdict = expecte
 }
 
 process.stdout.write(`V2 live E2E: ${contract}; fixture commit ${commit}; test wallets ${accounts.map(item => item.address).join(" / ")}\n`);
+if (phase === "full") {
 await write("failure.selfSteward", "register_covenant", covenantArgs("v2-self-steward", accounts[0].address), maintainer, "INVALID_COVENANT");
 await write("failure.manifestMismatch", "register_covenant", covenantArgs("v2-wrong-manifest"), maintainer, "REPOSITORY_MANIFEST_NOT_VERIFIED");
 await write("register", "register_covenant", covenantArgs(), maintainer);
@@ -136,17 +139,22 @@ for (let attempt = 1; attempt <= 3; attempt++) {
   if (state.status !== (attempt === 3 ? "UNCERTAIN" : "OPEN") || Number(state.assessment_attempts) !== attempt) throw new Error(`Retry invariant failed at attempt ${attempt}: ${JSON.stringify(state)}`);
 }
 await write("failure.reassess", "assess_claim", ["claim-v2-bad-sha-001"], steward, "CLAIM_NOT_ASSESSABLE");
-await claim("restore", "claim-v2-restore-001", "abandoned", "CHALLENGE_PERIOD", "ABANDONED");
-await write("failure.wrongRestorer", "restore_continuity", ["claim-v2-restore-001", restoration.verified.url, restoration.verified.digest], steward, "MAINTAINER_ONLY");
-await write("failure.earlySuccession", "finalize_succession", ["claim-v2-restore-001"], steward, "SUCCESSION_NOT_READY");
-await write("restore.promise", "restore_continuity", ["claim-v2-restore-001", restoration.promise.url, restoration.promise.digest], maintainer);
-if ((await read("get_claim", ["claim-v2-restore-001"])).status !== "CHALLENGE_PERIOD") throw new Error("Bare promise incorrectly restored continuity.");
-await write("restore.verified", "restore_continuity", ["claim-v2-restore-001", restoration.verified.url, restoration.verified.digest], maintainer);
-if ((await read("get_claim", ["claim-v2-restore-001"])).status !== "RESTORED") throw new Error("Verified restoration invariant failed.");
-await claim("succession", "claim-v2-succession-001", "abandoned", "CHALLENGE_PERIOD", "ABANDONED");
-const pending = await read("get_claim", ["claim-v2-succession-001"]);
+} else {
+  await write("resume.register", "register_covenant", covenantArgs(), maintainer);
+}
+const restoreId = phase === "resume" ? "claim-v2-restore-002" : "claim-v2-restore-001";
+const successionId = phase === "resume" ? "claim-v2-succession-002" : "claim-v2-succession-001";
+await claim("restore", restoreId, "abandoned", "CHALLENGE_PERIOD", "ABANDONED");
+await write("failure.wrongRestorer", "restore_continuity", [restoreId, restoration.verified.url, restoration.verified.digest], steward, "MAINTAINER_ONLY");
+await write("failure.earlySuccession", "finalize_succession", [restoreId], steward, "SUCCESSION_NOT_READY");
+await write("restore.promise", "restore_continuity", [restoreId, restoration.promise.url, restoration.promise.digest], maintainer);
+if ((await read("get_claim", [restoreId])).status !== "CHALLENGE_PERIOD") throw new Error("Bare promise incorrectly restored continuity.");
+await write("restore.verified", "restore_continuity", [restoreId, restoration.verified.url, restoration.verified.digest], maintainer);
+if ((await read("get_claim", [restoreId])).status !== "RESTORED") throw new Error("Verified restoration invariant failed.");
+await claim("succession", successionId, "abandoned", "CHALLENGE_PERIOD", "ABANDONED");
+const pending = await read("get_claim", [successionId]);
 const waitMs = Math.max(0, Number(pending.challenge_ends_at) * 1000 - Date.now() + 1500);
 if (waitMs) { process.stdout.write(`Waiting ${waitMs}ms for challenge window.\n`); await new Promise(resolve => setTimeout(resolve, waitMs)); }
-await write("succession.finalize", "finalize_succession", ["claim-v2-succession-001"], steward);
+await write("succession.finalize", "finalize_succession", [successionId], steward);
 if ((await read("get_covenant", [covenantId])).state !== "SUCCESSOR_RECOGNIZED") throw new Error("Succession readback invariant failed.");
 process.stdout.write(`FORKRIGHT_V2_E2E_COMPLETE ${JSON.stringify({ contract, commit, stats: await read("get_stats"), history }, null, 2)}\n`);
