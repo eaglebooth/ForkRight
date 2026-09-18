@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 import "./globals.css";
 import "./sync.css";
+import "./logo-fix.css";
 
 export const metadata: Metadata = { title: "ForkRight — Continuity before crisis", description: "GenLayer continuity covenants for open-source projects." };
 

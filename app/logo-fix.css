@@ -1,0 +1,9 @@
+/* The supplied raster has a thin white canvas around the dark mark. */
+.brand img,
+.hero-mark img {
+  clip-path: inset(2.8% round 22%);
+}
+
+.hero-mark img {
+  border-radius: 0;
+}

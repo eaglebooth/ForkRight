@@ -25,3 +25,9 @@ Source asset: `public/forkright-logo.png` (1254 × 1254).
 - State never depends on color alone; every state includes a label and icon.
 - Focus outlines use the high-contrast cyan signal.
 - Reduced-motion users receive static transitions.
+
+## Logo edge treatment
+
+- The source PNG includes a thin white outer canvas. Every rendered logo uses a
+  2.8% inset clip with the mark's original rounded-square geometry, so the white
+  fringe never appears in the navigation, hero, or footer.
