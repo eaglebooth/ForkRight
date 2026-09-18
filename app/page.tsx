@@ -1,15 +1,24 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Activity, ArrowRight, BookOpen, ExternalLink, GitBranch, Menu, Radio, ShieldCheck, TimerReset, UserRoundCheck, Wallet, X } from "lucide-react";
 import { configured, connectWallet, contractAddress, currentWallet, disconnectWallet, explorerTx, readContract, watchWallet, writeContract } from "@/lib/genlayer";
 
 type FormMode = "register" | "claim" | "assess" | "resolve";
 type Notice = { kind: "idle" | "working" | "ok" | "error"; text: string; hash?: string };
+type RecordKind = "claim" | "covenant";
 
 const short = (value: string) => value ? `${value.slice(0, 6)}…${value.slice(-4)}` : "";
 const field = (data: FormData, key: string) => String(data.get(key) || "").trim();
+const unwrap = (input: unknown): Record<string, unknown> => {
+  let value = input;
+  try {
+    for (let i = 0; i < 3 && typeof value === "string"; i++) value = JSON.parse(value);
+    if (value && typeof value === "object" && Object.keys(value).length === 1 && "result" in value) value = (value as { result: unknown }).result;
+  } catch { return { raw: String(input) }; }
+  return value && typeof value === "object" ? value as Record<string, unknown> : { raw: String(value ?? "") };
+};
 
 export default function Home() {
   const [wallet, setWallet] = useState("");
@@ -17,44 +26,71 @@ export default function Home() {
   const [mode, setMode] = useState<FormMode>("register");
   const [notice, setNotice] = useState<Notice>({ kind: "idle", text: configured() ? "Verify the configured contract is V2 before writing. V1 writes are blocked." : "V2 is not deployed yet — deploy the contract to enable writes." });
   const [lookupId, setLookupId] = useState("oss-kernel-001");
+  const [recordKind, setRecordKind] = useState<RecordKind>("covenant");
   const [readback, setReadback] = useState<Record<string, unknown> | null>(null);
+  const [syncedAt, setSyncedAt] = useState("");
+  const [contractVersion, setContractVersion] = useState<number | null>(null);
 
   useEffect(() => { void currentWallet().then(setWallet); return watchWallet(setWallet); }, []);
+
+  useEffect(() => {
+    if (!configured()) return;
+    void readContract("get_contract_version").then(result => {
+      if (!result.success) return setContractVersion(0);
+      const metadata = unwrap(result.data);
+      setContractVersion(Number(metadata.version || 0));
+    });
+  }, []);
 
   async function connect() { const result = await connectWallet(); if (result.success) setWallet(String(result.data)); else setNotice({ kind: "error", text: result.error || "Connection failed." }); }
   async function disconnect() { await disconnectWallet(); setWallet(""); setNotice({ kind: "idle", text: "Wallet disconnected." }); }
 
+  const synchronize = useCallback(async (id: string, kind: RecordKind, quiet = false) => {
+    if (!id) return false;
+    if (!quiet) setNotice({ kind: "working", text: "Reading finalized contract state…" });
+    const result = await readContract(kind === "claim" ? "get_claim" : "get_covenant", id);
+    if (!result.success) { if (!quiet) setNotice({ kind: "error", text: result.error || "Read failed." }); return false; }
+    const value = unwrap(result.data);
+    if (value.exists === false) { if (!quiet) setNotice({ kind: "error", text: `${kind} “${id}” does not exist on V2.` }); return false; }
+    setLookupId(id); setRecordKind(kind); setReadback(value); setSyncedAt(new Date().toLocaleTimeString());
+    if (!quiet) setNotice({ kind: "ok", text: `Finalized ${kind} state synchronized.` });
+    return true;
+  }, []);
+
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
-    let method = ""; let args: unknown[] = [];
+    let method = ""; let args: unknown[] = []; let syncId = ""; let syncKind: RecordKind = "claim";
     if (mode === "register") {
       method = "register_covenant";
+      syncId = field(data, "covenant_id"); syncKind = "covenant";
       args = [field(data, "covenant_id"), field(data, "repository"), field(data, "steward"), field(data, "standard"), BigInt(field(data, "inactivity_days")), BigInt(field(data, "response_days")), BigInt(field(data, "challenge_seconds")), field(data, "manifest_url"), field(data, "manifest_sha256")];
     } else if (mode === "claim") {
       method = "open_claim";
+      syncId = field(data, "claim_id");
       args = [field(data, "claim_id"), field(data, "covenant_id"), field(data, "activity_url"), field(data, "activity_sha256"), field(data, "security_url"), field(data, "security_sha256"), field(data, "response_url"), field(data, "response_sha256"), field(data, "statement")];
     } else if (mode === "assess") {
-      method = "assess_claim"; args = [field(data, "claim_id")];
+      method = "assess_claim"; syncId = field(data, "claim_id"); args = [syncId];
     } else {
-      method = field(data, "resolution"); args = [field(data, "claim_id")];
+      method = field(data, "resolution"); syncId = field(data, "claim_id"); args = [syncId];
       if (method === "restore_continuity") args.push(field(data, "restoration_url"), field(data, "restoration_sha256"));
     }
     setNotice({ kind: "working", text: "Awaiting wallet and validator finality…" });
-    const result = await writeContract(method, args);
-    setNotice(result.success ? { kind: "ok", text: `${method} finalized.`, hash: result.hash } : { kind: "error", text: result.error || "Transaction failed.", hash: result.hash });
+    const result = await writeContract(method, args, status => setNotice({ kind: "working", text: `Transaction ${status.phase}${status.queuePosition === undefined ? "" : ` · queue ${status.queuePosition}`}${status.statusName ? ` · ${status.statusName}` : ""}`, hash: status.genlayerTxId }));
+    if (!result.success) { setNotice({ kind: "error", text: result.error || "Transaction failed.", hash: result.hash }); return; }
+    const synchronized = await synchronize(syncId, syncKind, true);
+    setNotice({ kind: synchronized ? "ok" : "error", text: synchronized ? `${method} finalized · canonical state synchronized.` : `${method} finalized, but automatic readback failed. Use Synchronize state.`, hash: result.hash });
   }
 
   async function inspect() {
-    setNotice({ kind: "working", text: "Reading canonical contract state…" });
-    const method = lookupId.startsWith("claim-") ? "get_claim" : "get_covenant";
-    const result = await readContract(method, lookupId);
-    if (!result.success) { setNotice({ kind: "error", text: result.error || "Read failed." }); return; }
-    let value = result.data;
-    try { while (typeof value === "string") value = JSON.parse(value); } catch { /* show raw result */ }
-    setReadback((value || {}) as Record<string, unknown>);
-    setNotice({ kind: "ok", text: "Canonical state synchronized." });
+    await synchronize(lookupId, recordKind);
   }
+
+  useEffect(() => {
+    if (!configured() || !lookupId) return;
+    const timer = window.setInterval(() => { void synchronize(lookupId, recordKind, true); }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [lookupId, recordKind, synchronize]);
 
   return <main style={{ overflowX: "clip" }}>
     <header className="site-header">
@@ -113,8 +149,10 @@ export default function Home() {
           </form>
         </div>
         <aside className="readback">
-          <div className="read-head"><span>ON-CHAIN READBACK</span><span className={configured()?"online":"offline"}>{configured()?"ADDRESS SET · VERIFY V2":"V2 NOT DEPLOYED"}</span></div>
-          <label>Lookup covenant or claim ID<input value={lookupId} onChange={e=>setLookupId(e.target.value)}/></label><button onClick={inspect} disabled={!configured()}>Synchronize state</button>
+          <div className="read-head"><span>ON-CHAIN READBACK</span><span className={contractVersion===2?"online":"offline"}>{!configured()?"V2 NOT DEPLOYED":contractVersion===null?"VERIFYING CONTRACT…":contractVersion===2?"CONNECTED · V2":"WRONG CONTRACT VERSION"}</span></div>
+          <label>Record type<select value={recordKind} onChange={e=>setRecordKind(e.target.value as RecordKind)}><option value="covenant">Covenant</option><option value="claim">Claim</option></select></label>
+          <label>Lookup record ID<input value={lookupId} onChange={e=>setLookupId(e.target.value)}/></label><button onClick={inspect} disabled={!configured() || notice.kind==="working"}>Synchronize state</button>
+          <p className="sync-note">Auto-refresh every 30s{syncedAt ? ` · last synchronized ${syncedAt}` : ""}</p>
           <div className={`notice ${notice.kind}`}><span/>{notice.text}{notice.hash&&<a href={explorerTx(notice.hash)} target="_blank" rel="noreferrer">Transaction <ExternalLink size={13}/></a>}</div>
           <div className="json">{readback ? Object.entries(readback).map(([key,value])=><div key={key}><span>{key.replaceAll("_"," ")}</span><strong>{String(value)}</strong></div>) : <div className="empty"><GitBranch/><p>No synchronized record yet.</p></div>}</div>
           <div className="contract-id"><small>CONTRACT</small><span>{configured()?short(contractAddress()):"awaiting deployment"}</span></div>

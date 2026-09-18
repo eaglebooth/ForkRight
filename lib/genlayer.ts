@@ -1,4 +1,4 @@
-import { createTransactionKit, type SubmitInput } from "@genlayer/transaction-kit";
+import { createTransactionKit, type SubmitInput, type TrackedStatus } from "@genlayer/transaction-kit";
 import { GENLAYER_CHAIN, WALLET_NETWORK } from "./network";
 
 type Provider = { request: (args: { method: string; params?: unknown[] }) => Promise<unknown>; on?: (event: string, fn: (accounts: string[]) => void) => void; removeListener?: (event: string, fn: (accounts: string[]) => void) => void };
@@ -44,7 +44,7 @@ export function watchWallet(fn: (address: string) => void) {
   return () => window.ethereum?.removeListener?.("accountsChanged", listener);
 }
 
-export async function writeContract(method: string, args: unknown[]): Promise<ChainResult> {
+export async function writeContract(method: string, args: unknown[], onUpdate?: (status: TrackedStatus) => void): Promise<ChainResult> {
   if (!configured()) return { success: false, error: "Deploy ForkRight and configure its address first." };
   if (!window.ethereum) return { success: false, error: "Connect a wallet first." };
   try {
@@ -62,7 +62,8 @@ export async function writeContract(method: string, args: unknown[]): Promise<Ch
     const quote = await kit.estimate({ preset: "standard" }, tx);
     if (quote.verification.status === "mismatch") throw new Error("Fee policy changed. Retry with a fresh quote.");
     const submitted = await kit.submit(quote, tx);
-    const final = await kit.track(submitted.genlayerTxId, () => undefined, { until: "finalized" });
+    onUpdate?.({ phase: "submitted", genlayerTxId: submitted.genlayerTxId, evmTxHash: submitted.evmTxHash });
+    const final = await kit.track(submitted.genlayerTxId, status => onUpdate?.(status), { until: "finalized" });
     if (!final.successful || final.executionResultName !== "FINISHED_WITH_RETURN") return { success: false, hash: submitted.genlayerTxId, error: `Finalized without successful return (${final.executionResultName || final.statusName}).` };
     return { success: true, hash: submitted.genlayerTxId };
   } catch (error) { return { success: false, error: error instanceof Error ? error.message : "Transaction failed." }; }

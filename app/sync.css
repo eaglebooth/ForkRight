@@ -1,0 +1,27 @@
+.readback select {
+  width: 100%;
+  margin-top: 8px;
+  border: 1px solid #31505a;
+  border-radius: 0;
+  outline: none;
+  background: #031923;
+  color: white;
+  padding: 13px;
+}
+
+.readback select:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 2px rgba(25, 231, 242, 0.1);
+}
+
+.sync-note {
+  margin: 10px 0 0;
+  color: #708c91;
+  font: 400 9px var(--font-mono);
+  line-height: 1.5;
+}
+
+.readback button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
